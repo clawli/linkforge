@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/db";
+import { db, ensureTables } from "@/db";
 import { links, clicks } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { UAParser } from "ua-parser-js";
@@ -16,7 +16,9 @@ export async function GET(
   }
 
   try {
-    const link = db.select().from(links).where(eq(links.slug, slug)).get();
+    await ensureTables();
+
+    const link = await db.select().from(links).where(eq(links.slug, slug)).get();
 
     if (!link) {
       return NextResponse.redirect(new URL(`/not-found?slug=${slug}`, request.url));
@@ -34,8 +36,9 @@ export async function GET(
 
     // Log click asynchronously
     try {
-      db.insert(clicks).values({
+      await db.insert(clicks).values({
         linkId: link.id,
+        timestamp: new Date().toISOString(),
         referrer: request.headers.get("referer") || null,
         country: request.headers.get("x-vercel-ip-country") || null,
         city: request.headers.get("x-vercel-ip-city") || null,

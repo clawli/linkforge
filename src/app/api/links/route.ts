@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/db";
+import { db, ensureTables } from "@/db";
 import { links } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { createSlug, createAdminToken, isValidUrl, isValidSlug, getBaseUrl } from "@/lib/utils";
@@ -20,6 +20,8 @@ function isRateLimited(ip: string): boolean {
 
 export async function POST(request: NextRequest) {
   try {
+    await ensureTables();
+
     const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
     if (isRateLimited(ip)) {
       return NextResponse.json({ error: "Rate limit exceeded. Try again in a minute." }, { status: 429 });
@@ -42,7 +44,7 @@ export async function POST(request: NextRequest) {
         );
       }
       // Check if slug is taken
-      const existing = db.select().from(links).where(eq(links.slug, normalized)).get();
+      const existing = await db.select().from(links).where(eq(links.slug, normalized)).get();
       if (existing) {
         return NextResponse.json({ error: "This slug is already taken. Try another one." }, { status: 409 });
       }
@@ -53,10 +55,11 @@ export async function POST(request: NextRequest) {
 
     const adminToken = createAdminToken();
 
-    db.insert(links).values({
+    await db.insert(links).values({
       slug,
       url,
       adminToken,
+      createdAt: new Date().toISOString(),
     }).run();
 
     const baseUrl = getBaseUrl();

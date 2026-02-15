@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/db";
+import { db, ensureTables } from "@/db";
 import { links, clicks } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 
@@ -8,6 +8,7 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
+    await ensureTables();
     const { slug } = await params;
     const token = request.nextUrl.searchParams.get("token");
 
@@ -15,7 +16,7 @@ export async function GET(
       return NextResponse.json({ error: "Admin token required." }, { status: 401 });
     }
 
-    const link = db
+    const link = await db
       .select()
       .from(links)
       .where(and(eq(links.slug, slug), eq(links.adminToken, token)))
@@ -26,14 +27,14 @@ export async function GET(
     }
 
     // Get total clicks
-    const totalClicks = db
+    const totalClicks = await db
       .select({ count: sql<number>`count(*)` })
       .from(clicks)
       .where(eq(clicks.linkId, link.id))
       .get();
 
     // Get clicks over time (last 30 days, grouped by day)
-    const clicksOverTime = db
+    const clicksOverTime = await db
       .select({
         date: sql<string>`date(${clicks.timestamp})`,
         count: sql<number>`count(*)`,
@@ -50,7 +51,7 @@ export async function GET(
       .all();
 
     // Get top referrers
-    const topReferrers = db
+    const topReferrers = await db
       .select({
         referrer: clicks.referrer,
         count: sql<number>`count(*)`,
@@ -63,7 +64,7 @@ export async function GET(
       .all();
 
     // Get device breakdown
-    const deviceBreakdown = db
+    const deviceBreakdown = await db
       .select({
         device: clicks.device,
         count: sql<number>`count(*)`,
@@ -76,7 +77,7 @@ export async function GET(
       .all();
 
     // Get browser breakdown
-    const browserBreakdown = db
+    const browserBreakdown = await db
       .select({
         browser: clicks.browser,
         count: sql<number>`count(*)`,
@@ -89,7 +90,7 @@ export async function GET(
       .all();
 
     // Get OS breakdown
-    const osBreakdown = db
+    const osBreakdown = await db
       .select({
         os: clicks.os,
         count: sql<number>`count(*)`,
@@ -102,7 +103,7 @@ export async function GET(
       .all();
 
     // Get country breakdown
-    const countryBreakdown = db
+    const countryBreakdown = await db
       .select({
         country: clicks.country,
         count: sql<number>`count(*)`,
@@ -142,6 +143,7 @@ export async function DELETE(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
+    await ensureTables();
     const { slug } = await params;
     const token = request.nextUrl.searchParams.get("token");
 
@@ -149,7 +151,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Admin token required." }, { status: 401 });
     }
 
-    const link = db
+    const link = await db
       .select()
       .from(links)
       .where(and(eq(links.slug, slug), eq(links.adminToken, token)))
@@ -159,7 +161,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Link not found or invalid token." }, { status: 404 });
     }
 
-    db.delete(links).where(eq(links.id, link.id)).run();
+    await db.delete(links).where(eq(links.id, link.id)).run();
 
     return NextResponse.json({ success: true });
   } catch (error) {
